@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -19,29 +19,22 @@ jobs:
 
       - name: Find and extract ZIP
         run: |
-          ZIP=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
-
+          ZIP=$(find . -maxdepth 3 -type f -name "*.zip" | head -n 1)
           if [ -z "$ZIP" ]; then
-            echo "No ZIP file found!"
+            echo "No ZIP found"
             exit 1
           fi
-
           mkdir -p extracted
           unzip -oq "$ZIP" -d extracted
 
       - name: Locate Android project
         run: |
-          ROOT=$(find extracted -name settings.gradle.kts \
-            -o -name settings.gradle | head -n 1)
-
+          ROOT=$(find extracted \( -name settings.gradle.kts -o -name settings.gradle \) | head -n 1)
           if [ -z "$ROOT" ]; then
-            echo "Android Gradle project not found!"
+            echo "Android project not found"
             exit 1
           fi
-
-          DIR=$(dirname "$ROOT")
-
-          cp -a "$DIR"/. .
+          cp -a "$(dirname "$ROOT")"/. .
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -51,20 +44,14 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
       - name: Build APK
-        run: |
-          if [ ! -f gradlew ]; then
-            echo "Gradle wrapper missing. Add gradlew and gradle/wrapper files."
-            exit 1
-          fi
-
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Android-APK
           path: app/build/outputs/apk/debug/*.apk
-          
