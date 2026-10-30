@@ -1,0 +1,70 @@
+
+name: Extract and Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find and extract ZIP
+        run: |
+          ZIP=$(find . -maxdepth 2 -type f -name "*.zip" | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "No ZIP file found!"
+            exit 1
+          fi
+
+          mkdir -p extracted
+          unzip -oq "$ZIP" -d extracted
+
+      - name: Locate Android project
+        run: |
+          ROOT=$(find extracted -name settings.gradle.kts \
+            -o -name settings.gradle | head -n 1)
+
+          if [ -z "$ROOT" ]; then
+            echo "Android Gradle project not found!"
+            exit 1
+          fi
+
+          DIR=$(dirname "$ROOT")
+
+          cp -a "$DIR"/. .
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build APK
+        run: |
+          if [ ! -f gradlew ]; then
+            echo "Gradle wrapper missing. Add gradlew and gradle/wrapper files."
+            exit 1
+          fi
+
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-APK
+          path: app/build/outputs/apk/debug/*.apk
+          
